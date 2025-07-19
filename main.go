@@ -1,10 +1,13 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"os"
 
 	"github.com/Roddyck/gator/internal/config"
+	"github.com/Roddyck/gator/internal/database"
+	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -13,7 +16,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	db, err := sql.Open("postgres", cfg.DbUrl)
+	dbQueries := database.New(db)
+
 	s := &state{
+		db: dbQueries,
 		cfg: &cfg,
 	}
 
@@ -22,6 +29,14 @@ func main() {
 	}
 
 	cmds.register("login", handlerLogin)
+	cmds.register("register", handleRegister)
+	cmds.register("reset", handleReset)
+	cmds.register("users", handleUsers)
+	cmds.register("agg", handleAgg)
+	cmds.register("addfeed", handleAddFeed)
+	cmds.register("feeds", handleFeeds)
+	cmds.register("follow", handleFollow)
+	cmds.register("following", handleFollowing)
 
 	args := os.Args
 	if len(args) < 2 {
