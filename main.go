@@ -5,11 +5,11 @@ import (
 	"log"
 	"os"
 
+	"github.com/Roddyck/gator/command"
+	"github.com/Roddyck/gator/handlers"
 	"github.com/Roddyck/gator/internal/config"
 	"github.com/Roddyck/gator/internal/database"
 	"github.com/Roddyck/gator/state"
-	"github.com/Roddyck/gator/command"
-	"github.com/Roddyck/gator/handlers"
 	_ "github.com/lib/pq"
 )
 

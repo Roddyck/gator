@@ -3,8 +3,8 @@ package utils
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/Roddyck/gator/internal/database"
@@ -13,28 +13,28 @@ import (
 	"github.com/google/uuid"
 )
 
-func ScrapeFeeds(s *state.State) error {
-	feedToFetch, err := s.Db.GetNextFeedToFetch(context.Background())
-	if err != nil {
-		return fmt.Errorf("error getting next feed to fetch: %w", err)
-	}
+
+func ScrapeFeed(wg *sync.WaitGroup, s *state.State, feed database.Feed) {
+	defer wg.Done()
 
 	params := database.MarkFeedFetchedParams{
 		LastFetchedAt: sql.NullTime{Time: time.Now().UTC(), Valid: true},
 		UpdatedAt:     time.Now().UTC(),
-		ID:            feedToFetch.ID,
+		ID:            feed.ID,
 	}
-	err = s.Db.MarkFeedFetched(context.Background(), params)
+	err := s.Db.MarkFeedFetched(context.Background(), params)
 	if err != nil {
-		return fmt.Errorf("error marking feed fetched: %w", err)
+		log.Printf("error marking feed fetched: %v", err)
+		return
 	}
 
-	feed, err := rss_feed.FetchFeed(context.Background(), feedToFetch.Url)
+	rssFeed, err := rss_feed.FetchFeed(context.Background(), feed.Url)
 	if err != nil {
-		return fmt.Errorf("error fetching feed: %w", err)
+		log.Printf("error fetching feed: %v", err)
+		return
 	}
 
-	for _, item := range feed.Channel.Item {
+	for _, item := range rssFeed.Channel.Item {
 		post, err := s.Db.CreatePost(context.Background(), database.CreatePostParams{
 			ID:          uuid.New(),
 			CreatedAt:   time.Now().UTC(),
@@ -43,10 +43,10 @@ func ScrapeFeeds(s *state.State) error {
 			Url:         item.Link,
 			Description: sql.NullString{String: item.Description, Valid: item.Description != ""},
 			PublishedAt: parsePubDate(item.PubDate),
-			FeedID:      feedToFetch.ID,
+			FeedID:      feed.ID,
 		})
 		if err != nil {
-			return fmt.Errorf("error creating post: %w", err)
+			log.Printf("error creating post: %v", err)
 		}
 
 		if post.ID == uuid.Nil && post.Title == "" {
@@ -55,7 +55,6 @@ func ScrapeFeeds(s *state.State) error {
 		log.Printf("Created post: ID: %s, Title: %s, URL: %s", post.ID, post.Title, post.Url)
 	}
 
-	return nil
 }
 
 func parsePubDate(pubDate string) time.Time {

@@ -16,7 +16,7 @@ UPDATE feeds
     updated_at = $2
 WHERE id = $3;
 
--- name: GetNextFeedToFetch :one
+-- name: GetNextFeedToFetch :many
 SELECT * FROM feeds
 ORDER BY last_fetched_at NULLS FIRST
-LIMIT 1;
+LIMIT $1;
