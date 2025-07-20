@@ -1,11 +1,11 @@
-package main
+package state
 
 import (
 	"github.com/Roddyck/gator/internal/config"
 	"github.com/Roddyck/gator/internal/database"
 )
 
-type state struct {
-	db *database.Queries
-	cfg *config.Config
+type State struct {
+	Db *database.Queries
+	Cfg *config.Config
 }

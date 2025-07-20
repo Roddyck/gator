@@ -7,6 +7,9 @@ import (
 
 	"github.com/Roddyck/gator/internal/config"
 	"github.com/Roddyck/gator/internal/database"
+	"github.com/Roddyck/gator/state"
+	"github.com/Roddyck/gator/command"
+	"github.com/Roddyck/gator/handlers"
 	_ "github.com/lib/pq"
 )
 
@@ -19,37 +22,37 @@ func main() {
 	db, err := sql.Open("postgres", cfg.DbUrl)
 	dbQueries := database.New(db)
 
-	s := &state{
-		db: dbQueries,
-		cfg: &cfg,
+	s := &state.State{
+		Db: dbQueries,
+		Cfg: &cfg,
 	}
 
-	cmds := commands{
-		handlers: make(map[string]func(*state, command) error),
+	cmds := command.Commands{
+		Handlers: make(map[string]func(*state.State, command.Command) error),
 	}
 
-	cmds.register("login", handlerLogin)
-	cmds.register("register", handleRegister)
-	cmds.register("reset", handleReset)
-	cmds.register("users", handleUsers)
-	cmds.register("agg", handleAgg)
-	cmds.register("addfeed", middlewareLoggedIn(handleAddFeed))
-	cmds.register("feeds", handleFeeds)
-	cmds.register("follow", middlewareLoggedIn(handleFollow))
-	cmds.register("following", middlewareLoggedIn(handleFollowing))
-	cmds.register("unfollow", middlewareLoggedIn(handleUnfollow))
+	cmds.Register("login", handlers.HandleLogin)
+	cmds.Register("register", handlers.HandleRegister)
+	cmds.Register("reset", handlers.HandleReset)
+	cmds.Register("users", handlers.HandleUsers)
+	cmds.Register("agg", handlers.HandleAgg)
+	cmds.Register("addfeed", middlewareLoggedIn(handlers.HandleAddFeed))
+	cmds.Register("feeds", handlers.HandleFeeds)
+	cmds.Register("follow", middlewareLoggedIn(handlers.HandleFollow))
+	cmds.Register("following", middlewareLoggedIn(handlers.HandleFollowing))
+	cmds.Register("unfollow", middlewareLoggedIn(handlers.HandleUnfollow))
 
 	args := os.Args
 	if len(args) < 2 {
 		log.Fatal("not enough arguments provided")
 	}
 
-	cmd := command{
-		name: args[1],
-		args: args[2:],
+	cmd := command.Command{
+		Name: args[1],
+		Args: args[2:],
 	}
 
-	err = cmds.run(s, cmd)
+	err = cmds.Run(s, cmd)
 	if err != nil {
 		log.Fatal(err)
 	}
