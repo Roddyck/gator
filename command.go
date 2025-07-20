@@ -115,30 +115,28 @@ func handleUsers(s *state, cmd command) error {
 }
 
 func handleAgg(s *state, cmd command) error {
-	url := "https://www.wagslane.dev/index.xml"
-
-	feed, err := fetchFeed(context.Background(), url)
-	if err != nil {
-		return fmt.Errorf("error fetching feed: %w", err)
+	if len(cmd.args) != 1 {
+		return errors.New("you must provide duration string like 1s, 1m, 1h")
 	}
 
-	fmt.Printf("Feed: %+v\n", feed)
+	timeBetweenRequests, err := time.ParseDuration(cmd.args[0])
+	if err != nil {
+		return fmt.Errorf("error parsing duration string: %w", err)
+	}
 
-	return nil
+	ticker := time.NewTicker(timeBetweenRequests)
+
+	for ; ; <-ticker.C {
+		screpeFeeds(s)
+	}
 }
 
-func handleAddFeed(s *state, cmd command) error {
+func handleAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 2 {
 		return errors.New("you should provide name and url of the feed")
 	}
 
 	name, url := cmd.args[0], cmd.args[1]
-
-	username := s.cfg.CurrentUserName
-	currentUser, err := s.db.GetUser(context.Background(), username)
-	if err != nil {
-		return fmt.Errorf("error retrieving current user: %w", err)
-	}
 
 	feedParams := database.CreateFeedParams{
 		ID:        uuid.New(),
@@ -146,7 +144,7 @@ func handleAddFeed(s *state, cmd command) error {
 		UpdatedAt: time.Now(),
 		Name:      name,
 		Url:       url,
-		UserID:    currentUser.ID,
+		UserID:    user.ID,
 	}
 
 	dbFeed, err := s.db.CreateFeed(context.Background(), feedParams)
@@ -158,7 +156,7 @@ func handleAddFeed(s *state, cmd command) error {
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		UserID:    currentUser.ID,
+		UserID:    user.ID,
 		FeedID:    feedParams.ID,
 	}
 
@@ -193,7 +191,7 @@ func handleFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handleFollow(s *state, cmd command) error {
+func handleFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 1 {
 		return errors.New("you must provide url as argument")
 	}
@@ -201,11 +199,6 @@ func handleFollow(s *state, cmd command) error {
 	url := cmd.args[0]
 
 	feed, err := s.db.GetFeedByUrl(context.Background(), url)
-	if err != nil {
-		return err
-	}
-
-	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
 	if err != nil {
 		return err
 	}
@@ -229,12 +222,7 @@ func handleFollow(s *state, cmd command) error {
 	return nil
 }
 
-func handleFollowing(s *state, cmd command) error {
-	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
-	if err != nil {
-		return fmt.Errorf("error retrieving current user: %w", err)
-	}
-
+func handleFollowing(s *state, cmd command, user database.User) error {
 	feedFollows, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
 	if err != nil {
 		return fmt.Errorf("error getting feed follows for current user: %w", err)
@@ -242,6 +230,31 @@ func handleFollowing(s *state, cmd command) error {
 
 	for _, feedFollow := range feedFollows {
 		fmt.Println("Feed name:", feedFollow.FeedName)
+	}
+
+	return nil
+}
+
+func handleUnfollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) != 1 {
+		return errors.New("you must provide feed url as argument")
+	}
+
+	feedURL := cmd.args[0]
+
+	feed, err := s.db.GetFeedByUrl(context.Background(), feedURL)
+	if err != nil {
+		return fmt.Errorf("error retrieving feed with given url: %w", err)
+	}
+
+	deleteParams := database.DeleteFeedFollowParams{
+		UserID: user.ID,
+		FeedID: feed.ID,
+	}
+
+	err = s.db.DeleteFeedFollow(context.Background(), deleteParams)
+	if err != nil {
+		return fmt.Errorf("error unfollowing feed: %w", err)
 	}
 
 	return nil
